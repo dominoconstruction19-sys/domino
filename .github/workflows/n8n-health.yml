@@ -1,0 +1,43 @@
+name: n8n Health Monitor
+
+# Runs every 15 minutes (GitHub Actions cron minimum)
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:  # manual trigger via GitHub UI
+
+jobs:
+  check-n8n:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check n8n readiness
+        id: healthcheck
+        run: |
+          # Ping n8n /healthz/readiness — це той що показує чи Postgres pool alive
+          RESPONSE=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            --max-time 10 \
+            "https://primary-production-f9070.up.railway.app/healthz/readiness")
+          BODY=$(cat /tmp/body)
+          echo "HTTP Code: $RESPONSE"
+          echo "Body: $BODY"
+          echo "http_code=$RESPONSE" >> $GITHUB_OUTPUT
+          echo "body=$BODY" >> $GITHUB_OUTPUT
+
+      - name: Alert if unhealthy
+        if: steps.healthcheck.outputs.http_code != '200'
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          MSG="🚨 <b>N8N DOWN</b>%0A"
+          MSG="${MSG}HTTP: ${{ steps.healthcheck.outputs.http_code }}%0A"
+          MSG="${MSG}Response: ${{ steps.healthcheck.outputs.body }}%0A%0A"
+          MSG="${MSG}<b>Action:</b> Railway → Primary service → Restart%0A"
+          MSG="${MSG}(або Postgres, дивись логи спочатку)"
+          curl -sS -X POST \
+            "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TG_CHAT_ID}" \
+            -d "text=${MSG}" \
+            -d "parse_mode=HTML"
+          # Also fail the workflow so GitHub Actions dashboard shows red
+          exit 1
