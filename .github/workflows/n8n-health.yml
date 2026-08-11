@@ -27,7 +27,7 @@ jobs:
         if: steps.healthcheck.outputs.http_code != '200'
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          TG_CHAT_ID: "1875166087"
         run: |
           MSG="🚨 <b>N8N DOWN</b>%0A"
           MSG="${MSG}HTTP: ${{ steps.healthcheck.outputs.http_code }}%0A"
